@@ -1,21 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* MoguMeal: カフェ風の温かみのある配色パレット */
+  --background: #faf6f0; /* 柔らかいオフホワイト・アイボリー */
+  --foreground: #4a4036; /* ダークブラウン（黒の代わり） */
+  
+  --primary: #d48166; /* テラコッタ・ウォームオレンジ */
+  --primary-foreground: #ffffff;
+  
+  --secondary: #e6dcd3; /* 落ち着いたラテ色 */
+  --secondary-foreground: #4a4036;
+  
+  --card: #ffffff;
+  --card-foreground: #4a4036;
+  
+  --border: #e6dcd3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #2c2520; /* 深いエスプレッソブラウン */
+    --foreground: #f4eee8; /* 明るいクリーム */
+    
+    --primary: #c26c52; /* 少し落ち着いたテラコッタ */
+    --primary-foreground: #ffffff;
+    
+    --secondary: #4a4036; /* ダークブラウン */
+    --secondary-foreground: #d48166;
+    
+    --card: #3a322b;
+    --card-foreground: #f4eee8;
+    
+    --border: #4a4036;
   }
 }
 
@@ -23,4 +53,32 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Cookpad風のリスト用のナンバリングスタイル */
+.step-list {
+  counter-reset: step-counter;
+}
+.step-list > li {
+  position: relative;
+  padding-left: 2rem;
+  margin-bottom: 1rem;
+}
+.step-list > li::before {
+  counter-increment: step-counter;
+  content: counter(step-counter);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: bold;
 }
