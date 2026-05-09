@@ -113,7 +113,7 @@ export default function MenuPage() {
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">生成された献立</h2>
+          <h2 className="text-2xl font-bold text-foreground">完成した献立</h2>
           <p className="text-sm opacity-70 mt-1">タップして材料と作り方を確認できます</p>
         </div>
         <button onClick={() => router.push('/shopping-list')} className="bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-md hover:bg-teal-700 transition font-bold flex items-center justify-center gap-2">
@@ -203,7 +203,7 @@ export default function MenuPage() {
                     onClick={(e) => { e.stopPropagation(); openAdjustmentModal(idx); }} 
                     className="text-xs bg-white text-primary border border-primary px-3 py-1.5 rounded-full hover:bg-primary hover:text-white transition shadow-sm hidden sm:block"
                   >
-                    🔄 再生成
+                    🔄 別の献立にする
                   </button>
                   <span className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>
                     ▼
@@ -326,7 +326,7 @@ export default function MenuPage() {
                       onClick={() => openAdjustmentModal(idx)} 
                       className="w-full text-sm bg-white text-primary border border-primary py-3 rounded-xl shadow-sm font-bold"
                     >
-                      🔄 この日の献立を再生成する
+                      🔄 この日の献立を別のものにする
                     </button>
                   </div>
                   
@@ -341,7 +341,7 @@ export default function MenuPage() {
         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-card text-card-foreground p-6 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
             <h3 className="font-bold text-xl border-b pb-2">{weekMenu[selectedDayIndex].date} の献立を変更</h3>
-            <p className="text-sm opacity-80">他の曜日や同じ日の主菜・副菜と被らないように別の献立を生成します。</p>
+            <p className="text-sm opacity-80">他の曜日や同じ日の主菜・副菜と被らないように別の献立をつくります。</p>
             
             <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
               <div>
@@ -420,9 +420,9 @@ export default function MenuPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    生成中...
+                    MoguMogu...
                   </>
-                ) : '再生成する'}
+                ) : '別の献立にする'}
               </button>
             </div>
           </div>
