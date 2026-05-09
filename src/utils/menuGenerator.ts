@@ -119,18 +119,23 @@ export const generateDayMenu = async (
   const selectedMain = JSON.parse(JSON.stringify(shuffle(mainCandidates.slice(0, 3))[0] || recipes[0]));
 
   // 4. 副菜の器具被り（厳密な排他制御）
-  if (allowedAppliances && allowedAppliances.length > 0) {
-    sideCandidates = sideCandidates.filter(r => r.appliance.some(a => allowedAppliances.includes(a)));
+  // ユーザーが所有している器具の中だけで副菜を選ぶ（targetAppliances は主菜用とみなし、副菜には強制しない）
+  if (prefs.appliances && prefs.appliances.length > 0) {
+    sideCandidates = sideCandidates.filter(r => r.appliance.some(a => prefs.appliances!.includes(a)));
   }
   
   const mainAppliances = selectedMain.appliance;
-  sideCandidates = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
-
-  if (sideCandidates.length === 0) {
+  // 主菜と全く同じ器具を使わないレシピだけを残す（同時調理を可能にするため）
+  const strictIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
+  
+  if (strictIndependentSides.length > 0) {
+    sideCandidates = strictIndependentSides;
+  } else if (sideCandidates.length === 0) {
+    // 万が一所有器具内で候補が見つからなかった場合のフォールバック
     sideCandidates = recipes.filter(r => r.id.startsWith('s') && !excludeRecipeIds.includes(r.id));
-    if (mainAppliances.includes('ヘルシオ（オーブン/レンジ機能）')) {
-      const nonHealsioSides = sideCandidates.filter(r => !r.appliance.includes('ヘルシオ（オーブン/レンジ機能）'));
-      if (nonHealsioSides.length > 0) sideCandidates = nonHealsioSides;
+    const fallbackIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
+    if (fallbackIndependentSides.length > 0) {
+      sideCandidates = fallbackIndependentSides;
     }
   }
 

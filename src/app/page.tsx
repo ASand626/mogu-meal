@@ -191,17 +191,6 @@ export default function WeeklySetupPage() {
               ))}
             </div>
 
-            <div className="border-t border-border pt-6 mt-6">
-              <label className="font-bold flex items-center gap-3">
-                🐟 今週の魚料理の目標回数:
-                <input 
-                  type="number" min="0" max="7" 
-                  value={weeklyConfig.fishDaysCount} 
-                  onChange={e => setWeeklyConfig({...weeklyConfig, fishDaysCount: parseInt(e.target.value) || 0})}
-                  className="w-16 p-2 rounded-lg border border-border bg-white text-center ml-2"
-                /> 回
-              </label>
-            </div>
           </section>
         )}
 
