@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import AuthButton from "../components/AuthButton";
 import AuthGuard from "../components/AuthGuard";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +49,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)] pb-20 md:pb-0">
+        <ErrorBoundary>
         <AppProvider>
           <AuthGuard>
             <header className="bg-primary text-primary-foreground p-4 shadow-md flex justify-between items-center gap-2 relative z-10">
@@ -97,6 +99,7 @@ export default function RootLayout({
           </nav>
           </AuthGuard>
         </AppProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
