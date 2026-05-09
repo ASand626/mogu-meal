@@ -42,7 +42,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth State Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+      setLoadingAuth(true);
       
       if (currentUser) {
         // ログイン状態：Firestoreからデータ取得
@@ -84,6 +84,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (storedFavs) setFavoriteRecipesState(JSON.parse(storedFavs));
       }
       
+      setUser(currentUser);
       setLoadingAuth(false);
       setIsLoaded(true);
     });
@@ -162,8 +163,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Logout failed", error);
     }
   };
-
-  if (!isLoaded || loadingAuth) return null;
+  // クライアントサイドでのみレンダリング（ハイドレーションエラー防止）
+  if (!isLoaded) return null;
 
   return (
     <AppContext.Provider value={{ 
