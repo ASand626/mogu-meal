@@ -145,7 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (error.message === 'NOT_REGISTERED') {
         alert("このGoogleアカウントに紐づくMoguMealアカウントは登録されていません。「はじめての方（アカウント作成）」から登録してください。");
       } else if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-        alert("エラーが発生しました。もう一度お試しください。");
+        alert("エラーが発生しました: " + (error.message || error.code || "不明なエラー"));
       }
       throw error;
     }
