@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserPreference, WeekMenu, Recipe } from '../types';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AppState {
@@ -16,7 +16,7 @@ interface AppState {
   toggleFavorite: (recipe: Recipe) => void;
   user: User | null;
   loadingAuth: boolean;
-  login: () => Promise<void>;
+  login: (isSignUp?: boolean) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -129,12 +129,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFavoriteRecipes(newFavs);
   };
 
-  const login = async () => {
+  const login = async (isSignUp: boolean = false) => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
+      const result = await signInWithPopup(auth, provider);
+      const details = getAdditionalUserInfo(result);
+      
+      if (!isSignUp && details?.isNewUser) {
+        // ログインボタンを押したのに新規ユーザーだった場合
+        await result.user.delete();
+        throw new Error('NOT_REGISTERED');
+      }
+    } catch (error: any) {
       console.error("Login failed", error);
+      if (error.message === 'NOT_REGISTERED') {
+        alert("このGoogleアカウントに紐づくMoguMealアカウントは登録されていません。「はじめての方（アカウント作成）」から登録してください。");
+      } else if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+        alert("エラーが発生しました。もう一度お試しください。");
+      }
+      throw error;
     }
   };
 
