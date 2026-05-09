@@ -23,7 +23,8 @@ export const generateDayMenu = async (
   isFishDay: boolean = false,
   adults: number = 2,
   children: number = 1,
-  targetAppliances?: Appliance[],
+  targetMainAppliances?: Appliance[],
+  targetSideAppliances?: Appliance[],
   skipScaling: boolean = false
 ): Promise<DayMenu> => {
   
@@ -54,7 +55,7 @@ export const generateDayMenu = async (
               targetIngredients: mustIncludeIngredients,
               adults,
               children,
-              targetAppliances: targetAppliances || prefs.appliances,
+              targetAppliances: targetMainAppliances || prefs.appliances,
               dislikedIngredients: allDisliked
             })
           });
@@ -82,10 +83,10 @@ export const generateDayMenu = async (
     }
   }
 
-  // 2. 器具による絞り込み
-  const allowedAppliances = targetAppliances && targetAppliances.length > 0 ? targetAppliances : prefs.appliances;
-  if (allowedAppliances && allowedAppliances.length > 0) {
-    const matchedMains = mainCandidates.filter(r => r.appliance.some(a => allowedAppliances.includes(a)));
+  // 2. 器具による絞り込み (主菜)
+  const allowedMainAppliances = targetMainAppliances && targetMainAppliances.length > 0 ? targetMainAppliances : prefs.appliances;
+  if (allowedMainAppliances && allowedMainAppliances.length > 0) {
+    const matchedMains = mainCandidates.filter(r => r.appliance.some(a => allowedMainAppliances.includes(a)));
     if (matchedMains.length > 0) mainCandidates = matchedMains;
   }
 
@@ -118,24 +119,31 @@ export const generateDayMenu = async (
   // クローンして使用（APIで分量書き換えるため元のデータを汚染しない）
   const selectedMain = JSON.parse(JSON.stringify(shuffle(mainCandidates.slice(0, 3))[0] || recipes[0]));
 
-  // 4. 副菜の器具被り（厳密な排他制御）
-  // ユーザーが所有している器具の中だけで副菜を選ぶ（targetAppliances は主菜用とみなし、副菜には強制しない）
-  if (prefs.appliances && prefs.appliances.length > 0) {
-    sideCandidates = sideCandidates.filter(r => r.appliance.some(a => prefs.appliances!.includes(a)));
+  // 4. 副菜の器具指定と被り防止（厳密な排他制御）
+  const allowedSideAppliances = targetSideAppliances && targetSideAppliances.length > 0 ? targetSideAppliances : prefs.appliances;
+  if (allowedSideAppliances && allowedSideAppliances.length > 0) {
+    sideCandidates = sideCandidates.filter(r => r.appliance.some(a => allowedSideAppliances.includes(a)));
   }
   
   const mainAppliances = selectedMain.appliance;
-  // 主菜と全く同じ器具を使わないレシピだけを残す（同時調理を可能にするため）
-  const strictIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
   
-  if (strictIndependentSides.length > 0) {
-    sideCandidates = strictIndependentSides;
-  } else if (sideCandidates.length === 0) {
-    // 万が一所有器具内で候補が見つからなかった場合のフォールバック
-    sideCandidates = recipes.filter(r => r.id.startsWith('s') && !excludeRecipeIds.includes(r.id));
-    const fallbackIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
-    if (fallbackIndependentSides.length > 0) {
-      sideCandidates = fallbackIndependentSides;
+  // ユーザーが意図的に主菜と副菜に同じ器具を指定した場合（例：どちらもホットクック）を除外しない
+  const isIntentionalOverlap = targetMainAppliances && targetSideAppliances && 
+    targetMainAppliances.some(a => targetSideAppliances.includes(a));
+
+  if (!isIntentionalOverlap) {
+    // 主菜と全く同じ器具を使わないレシピだけを残す（同時調理を可能にするため）
+    const strictIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
+    
+    if (strictIndependentSides.length > 0) {
+      sideCandidates = strictIndependentSides;
+    } else if (sideCandidates.length === 0) {
+      // 万が一候補が見つからなかった場合のフォールバック
+      sideCandidates = recipes.filter(r => r.id.startsWith('s') && !excludeRecipeIds.includes(r.id));
+      const fallbackIndependentSides = sideCandidates.filter(r => !r.appliance.some((a: Appliance) => mainAppliances.includes(a)));
+      if (fallbackIndependentSides.length > 0) {
+        sideCandidates = fallbackIndependentSides;
+      }
     }
   }
 
@@ -221,8 +229,9 @@ export const generateWeekMenu = async (prefs: UserPreference, config: WeeklyConf
       isFishDay,
       dayConfig.adults,
       dayConfig.children,
-      undefined,
-      true // 一括で後で処理するため単発のAPI呼び出しをスキップ
+      undefined, // targetMainAppliances
+      undefined, // targetSideAppliances
+      true // skipScaling
     );
     
     weekMenu.push(dayMenu);

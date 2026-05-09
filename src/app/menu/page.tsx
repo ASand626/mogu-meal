@@ -17,7 +17,8 @@ export default function MenuPage() {
     ingredients: '', 
     adults: 2,
     children: 1,
-    appliances: [] as Appliance[] 
+    mainAppliances: [] as Appliance[],
+    sideAppliances: [] as Appliance[]
   });
   
   // アコーディオンの開閉状態
@@ -46,16 +47,18 @@ export default function MenuPage() {
       ingredients: '',
       adults: weekMenu[idx].adults,
       children: weekMenu[idx].children,
-      appliances: [...userPreference.appliances] // デフォルトはユーザー全体設定
+      mainAppliances: [],
+      sideAppliances: []
     });
   };
 
-  const handleApplianceToggle = (appliance: Appliance) => {
-    const current = adjustmentTarget.appliances;
+  const handleApplianceToggle = (appliance: Appliance, type: 'main' | 'side') => {
+    const key = type === 'main' ? 'mainAppliances' : 'sideAppliances';
+    const current = adjustmentTarget[key];
     if (current.includes(appliance)) {
-      setAdjustmentTarget({ ...adjustmentTarget, appliances: current.filter(a => a !== appliance) });
+      setAdjustmentTarget({ ...adjustmentTarget, [key]: current.filter(a => a !== appliance) });
     } else {
-      setAdjustmentTarget({ ...adjustmentTarget, appliances: [...current, appliance] });
+      setAdjustmentTarget({ ...adjustmentTarget, [key]: [...current, appliance] });
     }
   };
 
@@ -78,7 +81,8 @@ export default function MenuPage() {
         false, // isFishDay は基本維持しないかランダム、今回は false でシンプルに
         adjustmentTarget.adults,
         adjustmentTarget.children,
-        adjustmentTarget.appliances
+        adjustmentTarget.mainAppliances,
+        adjustmentTarget.sideAppliances
       );
 
       const newWeekMenu = [...weekMenu];
@@ -341,14 +345,31 @@ export default function MenuPage() {
             
             <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
               <div>
-                <label className="block text-sm mb-1 font-bold">この日に使いたい器具（複数選択可）</label>
+                <label className="block text-sm mb-1 font-bold">🍳 主菜に使いたい器具（複数選択可）</label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {availableAppliances.map(app => (
-                    <label key={app} className="flex items-center space-x-2 p-2 rounded-lg border border-border bg-secondary/10 hover:bg-secondary/30 cursor-pointer transition text-xs font-bold">
+                    <label key={`main-${app}`} className="flex items-center space-x-2 p-2 rounded-lg border border-border bg-secondary/10 hover:bg-secondary/30 cursor-pointer transition text-xs font-bold">
                       <input 
                         type="checkbox" 
-                        checked={adjustmentTarget.appliances.includes(app)}
-                        onChange={() => handleApplianceToggle(app)}
+                        checked={adjustmentTarget.mainAppliances.includes(app)}
+                        onChange={() => handleApplianceToggle(app, 'main')}
+                        className="w-4 h-4 text-primary rounded focus:ring-primary accent-primary" 
+                      />
+                      <span className="select-none truncate" title={app}>{app}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1 font-bold">🥗 副菜に使いたい器具（複数選択可）</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {availableAppliances.map(app => (
+                    <label key={`side-${app}`} className="flex items-center space-x-2 p-2 rounded-lg border border-border bg-secondary/10 hover:bg-secondary/30 cursor-pointer transition text-xs font-bold">
+                      <input 
+                        type="checkbox" 
+                        checked={adjustmentTarget.sideAppliances.includes(app)}
+                        onChange={() => handleApplianceToggle(app, 'side')}
                         className="w-4 h-4 text-primary rounded focus:ring-primary accent-primary" 
                       />
                       <span className="select-none truncate" title={app}>{app}</span>
