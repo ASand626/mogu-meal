@@ -39,6 +39,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // 安全にJSONをパースする関数
+  const safeJSONParse = (data: string | null) => {
+    if (!data) return null;
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      console.error("JSON parse error:", e);
+      return null;
+    }
+  };
+
   // Auth State Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -62,9 +73,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const storedFavs = localStorage.getItem('favoriteRecipes');
             
             const initialData: any = {};
-            if (storedPrefs) { initialData.userPreference = JSON.parse(storedPrefs); setUserPreferenceState(initialData.userPreference); }
-            if (storedMenu) { initialData.weekMenu = JSON.parse(storedMenu); setWeekMenuState(initialData.weekMenu); }
-            if (storedFavs) { initialData.favoriteRecipes = JSON.parse(storedFavs); setFavoriteRecipesState(initialData.favoriteRecipes); }
+            if (storedPrefs) { const p = safeJSONParse(storedPrefs); if(p) { initialData.userPreference = p; setUserPreferenceState(p); } }
+            if (storedMenu) { const m = safeJSONParse(storedMenu); if(m) { initialData.weekMenu = m; setWeekMenuState(m); } }
+            if (storedFavs) { const f = safeJSONParse(storedFavs); if(f) { initialData.favoriteRecipes = f; setFavoriteRecipesState(f); } }
             
             if (Object.keys(initialData).length > 0) {
               await setDoc(docRef, initialData, { merge: true });
@@ -79,9 +90,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const storedMenu = localStorage.getItem('weekMenu');
         const storedFavs = localStorage.getItem('favoriteRecipes');
         
-        if (storedPrefs) setUserPreferenceState(JSON.parse(storedPrefs));
-        if (storedMenu) setWeekMenuState(JSON.parse(storedMenu));
-        if (storedFavs) setFavoriteRecipesState(JSON.parse(storedFavs));
+        if (storedPrefs) { const p = safeJSONParse(storedPrefs); if(p) setUserPreferenceState(p); }
+        if (storedMenu) { const m = safeJSONParse(storedMenu); if(m) setWeekMenuState(m); }
+        if (storedFavs) { const f = safeJSONParse(storedFavs); if(f) setFavoriteRecipesState(f); }
       }
       
       setUser(currentUser);
@@ -163,8 +174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Logout failed", error);
     }
   };
-  // クライアントサイドでのみレンダリング（ハイドレーションエラー防止）
-  if (!isLoaded) return null;
+
 
   return (
     <AppContext.Provider value={{ 
