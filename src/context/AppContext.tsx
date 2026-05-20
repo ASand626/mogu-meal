@@ -16,7 +16,9 @@ interface AppState {
   toggleFavorite: (recipe: Recipe) => void;
   user: User | null;
   loadingAuth: boolean;
-  login: (isSignUp?: boolean) => Promise<void>;
+  isGuest: boolean;
+  startGuestMode: () => void;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -26,9 +28,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [userPreference, setUserPreferenceState] = useState<UserPreference | null>(null);
   const [weekMenu, setWeekMenuState] = useState<WeekMenu | null>(null);
   const [favoriteRecipes, setFavoriteRecipesState] = useState<Recipe[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
 
   // Firestoreにデータを保存するヘルパー
   const saveToFirestore = async (uid: string, key: string, data: any) => {
@@ -39,23 +41,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // 安全にJSONをパースする関数
-  const safeJSONParse = (data: string | null) => {
-    if (!data) return null;
-    try {
-      return JSON.parse(data);
-    } catch (e) {
-      console.error("JSON parse error:", e);
-      return null;
-    }
-  };
-
   // Auth State Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoadingAuth(true);
-      
       if (currentUser) {
+        setIsGuest(false); // ログイン検知時はゲストモードを自動解除
         // ログイン状態：Firestoreからデータ取得
         try {
           const docRef = doc(db, 'users', currentUser.uid);
@@ -67,67 +57,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (data.weekMenu) setWeekMenuState(data.weekMenu);
             if (data.favoriteRecipes) setFavoriteRecipesState(data.favoriteRecipes);
           } else {
-            // Firestoreにデータがない場合、LocalStorageから移行（あれば）
-            const storedPrefs = localStorage.getItem('userPreference');
-            const storedMenu = localStorage.getItem('weekMenu');
-            const storedFavs = localStorage.getItem('favoriteRecipes');
-            
-            const initialData: any = {};
-            if (storedPrefs) { const p = safeJSONParse(storedPrefs); if(p) { initialData.userPreference = p; setUserPreferenceState(p); } }
-            if (storedMenu) { const m = safeJSONParse(storedMenu); if(m) { initialData.weekMenu = m; setWeekMenuState(m); } }
-            if (storedFavs) { const f = safeJSONParse(storedFavs); if(f) { initialData.favoriteRecipes = f; setFavoriteRecipesState(f); } }
-            
-            if (Object.keys(initialData).length > 0) {
-              await setDoc(docRef, initialData, { merge: true });
-            }
+            // 新規登録ユーザーはFirestoreにデータがないためステートを初期化
+            setUserPreferenceState(null);
+            setWeekMenuState(null);
+            setFavoriteRecipesState([]);
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
         }
       } else {
-        // 未ログイン状態：LocalStorageから復元
-        const storedPrefs = localStorage.getItem('userPreference');
-        const storedMenu = localStorage.getItem('weekMenu');
-        const storedFavs = localStorage.getItem('favoriteRecipes');
-        
-        if (storedPrefs) { const p = safeJSONParse(storedPrefs); if(p) setUserPreferenceState(p); }
-        if (storedMenu) { const m = safeJSONParse(storedMenu); if(m) setWeekMenuState(m); }
-        if (storedFavs) { const f = safeJSONParse(storedFavs); if(f) setFavoriteRecipesState(f); }
+        // 未ログイン状態：ステートをクリア（ゲストモードでなければリセット）
+        setUserPreferenceState(null);
+        setWeekMenuState(null);
+        setFavoriteRecipesState([]);
       }
       
       setUser(currentUser);
       setLoadingAuth(false);
-      setIsLoaded(true);
     });
 
     return () => unsubscribe();
   }, []);
 
+  const startGuestMode = () => {
+    setIsGuest(true);
+    setUserPreferenceState(null);
+    setWeekMenuState(null);
+    setFavoriteRecipesState([]);
+  };
+
   const setUserPreference = (prefs: UserPreference) => {
     setUserPreferenceState(prefs);
     if (user) {
       saveToFirestore(user.uid, 'userPreference', prefs);
-    } else {
-      localStorage.setItem('userPreference', JSON.stringify(prefs));
     }
+    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const setWeekMenu = (menu: WeekMenu) => {
     setWeekMenuState(menu);
     if (user) {
       saveToFirestore(user.uid, 'weekMenu', menu);
-    } else {
-      localStorage.setItem('weekMenu', JSON.stringify(menu));
     }
+    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const setFavoriteRecipes = (recipes: Recipe[]) => {
     setFavoriteRecipesState(recipes);
     if (user) {
       saveToFirestore(user.uid, 'favoriteRecipes', recipes);
-    } else {
-      localStorage.setItem('favoriteRecipes', JSON.stringify(recipes));
     }
+    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const toggleFavorite = (recipe: Recipe) => {
@@ -141,22 +121,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFavoriteRecipes(newFavs);
   };
 
-  const login = async (isSignUp: boolean = false) => {
+  const login = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      const details = getAdditionalUserInfo(result);
-      
-      if (!isSignUp && details?.isNewUser) {
-        // ログインボタンを押したのに新規ユーザーだった場合
-        await result.user.delete();
-        throw new Error('NOT_REGISTERED');
-      }
+      await signInWithPopup(auth, provider);
+      setIsGuest(false);
     } catch (error: any) {
       console.error("Login failed", error);
-      if (error.message === 'NOT_REGISTERED') {
-        alert("このGoogleアカウントに紐づくMoguMealアカウントは登録されていません。「はじめての方（アカウント作成）」から登録してください。");
-      } else if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
+      if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         alert("エラーが発生しました: " + (error.message || error.code || "不明なエラー"));
       }
       throw error;
@@ -166,10 +138,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = async () => {
     try {
       await signOut(auth);
-      // ログアウト時にローカルステートをクリア（またはローカルストレージの値に戻す）
       setUserPreferenceState(null);
       setWeekMenuState(null);
       setFavoriteRecipesState([]);
+      setIsGuest(false);
+      
+      // ローカルストレージに残っている古いゴミデータやゲスト用のデータも完全に消去
+      localStorage.removeItem('userPreference');
+      localStorage.removeItem('weekMenu');
+      localStorage.removeItem('favoriteRecipes');
     } catch (error) {
       console.error("Logout failed", error);
     }
@@ -181,7 +158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userPreference, setUserPreference, 
       weekMenu, setWeekMenu,
       favoriteRecipes, setFavoriteRecipes, toggleFavorite,
-      user, loadingAuth, login, logout
+      user, loadingAuth, isGuest, startGuestMode, login, logout
     }}>
       {children}
     </AppContext.Provider>

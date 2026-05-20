@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppContext } from '../../context/AppContext';
 import { Appliance, ChildPreference } from '../../types';
@@ -21,6 +21,13 @@ export default function SettingsPage() {
     appliances: defaultAppliances,
     appliancePriorities: defaultAppliances // デフォルト優先順位
   });
+
+  // Firestoreからデータがロードされたらフォームのステートを更新する
+  useEffect(() => {
+    if (userPreference) {
+      setFamilyConfig(userPreference);
+    }
+  }, [userPreference]);
 
   const handleChildCountChange = (newCount: number) => {
     let newChildren = [...familyConfig.children];

@@ -1,23 +1,71 @@
 'use client';
 
+import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 
 export default function AuthButton() {
   const { user, login, logout, loadingAuth } = useAppContext();
+  const [isOpen, setIsOpen] = useState(false);
 
   if (loadingAuth) return <div className="w-8 h-8 rounded-full bg-white/20 animate-pulse"></div>;
 
   if (user) {
     return (
-      <button onClick={logout} className="flex items-center gap-2 hover:opacity-80 transition bg-white/20 rounded-full pr-3 pl-1 py-1 text-sm font-bold shadow-sm border border-white/30">
-        <img src={user.photoURL || ''} alt="User" className="w-7 h-7 rounded-full bg-white" />
-        <span className="hidden sm:inline">ログアウト</span>
-      </button>
+      <div className="relative">
+        {/* アカウントボタン（タップでメニューを開閉） */}
+        <button 
+          onClick={() => setIsOpen(!isOpen)} 
+          className="flex items-center gap-2 hover:opacity-90 transition bg-white/10 hover:bg-white/20 rounded-full pr-3 pl-1 py-1 text-sm font-bold shadow-sm border border-white/20 focus:outline-none"
+        >
+          <img src={user.photoURL || ''} alt="User" className="w-7 h-7 rounded-full bg-white object-cover shrink-0" />
+          <span className="hidden sm:inline text-white">マイアカウント</span>
+        </button>
+
+        {/* バックドロップ（外側クリックで閉じる） */}
+        {isOpen && (
+          <div 
+            className="fixed inset-0 z-40 cursor-default" 
+            onClick={() => setIsOpen(false)}
+          />
+        )}
+
+        {/* ドロップダウンメニュー（ポップオーバー） */}
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl py-4 px-4 border border-slate-100 z-50 flex flex-col items-center text-center animate-in fade-in slide-in-from-top-2 duration-200 text-slate-800">
+            <img 
+              src={user.photoURL || ''} 
+              alt="User Large" 
+              className="w-16 h-16 rounded-full border-2 border-primary/20 shadow-sm object-cover mb-2" 
+            />
+            <div className="font-extrabold text-sm truncate max-w-full">
+              {user.displayName || 'ユーザー名未設定'}
+            </div>
+            <div className="text-xs text-slate-400 truncate max-w-full mb-3 font-medium">
+              {user.email || ''}
+            </div>
+
+            <hr className="w-full border-slate-100 mb-3" />
+
+            <button 
+              onClick={() => {
+                setIsOpen(false);
+                logout();
+              }}
+              className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 px-4 rounded-xl text-sm transition transform active:scale-95 flex items-center justify-center gap-1.5 focus:outline-none"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              ログアウト
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
 
   return (
-    <button onClick={() => login(false)} className="flex items-center gap-2 hover:opacity-90 transition bg-white text-primary rounded-full px-4 py-1.5 text-sm font-bold shadow-md">
+    <button onClick={login} className="flex items-center gap-2 hover:opacity-90 transition bg-white text-primary rounded-full px-4 py-1.5 text-sm font-bold shadow-md">
       <svg className="w-4 h-4" viewBox="0 0 24 24">
         <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
         <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
