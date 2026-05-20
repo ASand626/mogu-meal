@@ -7,6 +7,7 @@ import Link from "next/link";
 import AuthButton from "../components/AuthButton";
 import AuthGuard from "../components/AuthGuard";
 import ErrorBoundary from "../components/ErrorBoundary";
+import EmailVerificationBanner from "../components/EmailVerificationBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -69,6 +70,8 @@ export default function RootLayout({
                 <AuthButton />
               </div>
             </header>
+            
+            <EmailVerificationBanner />
             
             <main className="flex-1 p-4 md:p-8 max-w-5xl mx-auto w-full">
               {children}

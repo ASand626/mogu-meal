@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserPreference, WeekMenu, Recipe } from '../types';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AppState {
@@ -24,6 +24,9 @@ interface AppState {
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
+  reloadUser: () => Promise<void>;
+  changePassword: (current: string, newPass: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -158,8 +161,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signUpWithEmail = async (email: string, password: string) => {
     try {
       setIsLoggingIn(true);
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       setIsGuest(false);
+      if (userCredential.user) {
+        try {
+          await sendEmailVerification(userCredential.user);
+        } catch (verificationError) {
+          console.error("Failed to send verification email during signup", verificationError);
+        }
+      }
     } catch (error: any) {
       setIsLoggingIn(false);
       console.error("Email signup failed", error);
@@ -172,6 +182,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await sendPasswordResetEmail(auth, email);
     } catch (error: any) {
       console.error("Password reset failed", error);
+      throw error;
+    }
+  };
+
+  const sendVerificationEmail = async () => {
+    if (auth.currentUser) {
+      try {
+        await sendEmailVerification(auth.currentUser);
+      } catch (error: any) {
+        console.error("Verification email sending failed", error);
+        throw error;
+      }
+    } else {
+      throw new Error("ログインユーザーが見つかりません。");
+    }
+  };
+
+  const reloadUser = async () => {
+    if (auth.currentUser) {
+      try {
+        await auth.currentUser.reload();
+        // auth.currentUserの状態を最新のユーザーにマッピングしてステート更新
+        setUser({ ...auth.currentUser });
+      } catch (error: any) {
+        console.error("Failed to reload user", error);
+        throw error;
+      }
+    }
+  };
+
+  const changePassword = async (current: string, newPass: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.email) {
+      throw new Error("ログインユーザーが見つかりません。");
+    }
+    try {
+      const credential = EmailAuthProvider.credential(currentUser.email, current);
+      await reauthenticateWithCredential(currentUser, credential);
+      await updatePassword(currentUser, newPass);
+    } catch (error: any) {
+      console.error("Password change failed", error);
       throw error;
     }
   };
@@ -200,7 +251,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       weekMenu, setWeekMenu,
       favoriteRecipes, setFavoriteRecipes, toggleFavorite,
       user, loadingAuth, isGuest, isLoggingIn, startGuestMode, login, logout,
-      loginWithEmail, signUpWithEmail, resetPassword
+      loginWithEmail, signUpWithEmail, resetPassword,
+      sendVerificationEmail, reloadUser, changePassword
     }}>
       {children}
     </AppContext.Provider>

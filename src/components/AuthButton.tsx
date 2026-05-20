@@ -11,6 +11,19 @@ export default function AuthButton() {
   if (loadingAuth) return <div className="w-8 h-8 rounded-full bg-white/20 animate-pulse"></div>;
 
   if (user) {
+    // アバター描画ヘルパー
+    const renderAvatar = (sizeClass: string, textClass: string = "text-sm") => {
+      if (user.photoURL) {
+        return <img src={user.photoURL} alt="User" className={`${sizeClass} rounded-full object-cover bg-white shrink-0`} />;
+      }
+      const initial = user.displayName ? user.displayName.charAt(0) : (user.email ? user.email.charAt(0).toUpperCase() : 'M');
+      return (
+        <div className={`${sizeClass} rounded-full bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center font-black uppercase shrink-0 ${textClass}`}>
+          {initial}
+        </div>
+      );
+    };
+
     return (
       <div className="relative">
         {/* アカウントボタン（タップでメニューを開閉） */}
@@ -18,7 +31,7 @@ export default function AuthButton() {
           onClick={() => setIsOpen(!isOpen)} 
           className="flex items-center gap-2 hover:opacity-90 transition bg-white/10 hover:bg-white/20 rounded-full pr-3 pl-1 py-1 text-sm font-bold shadow-sm border border-white/20 focus:outline-none"
         >
-          <img src={user.photoURL || ''} alt="User" className="w-7 h-7 rounded-full bg-white object-cover shrink-0" />
+          {renderAvatar("w-7 h-7", "text-xs")}
           <span className="hidden sm:inline text-white">マイアカウント</span>
         </button>
 
@@ -39,11 +52,9 @@ export default function AuthButton() {
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl py-4 px-4 border border-slate-100 z-50 flex flex-col items-center text-center text-slate-800 origin-top-right"
               >
-                <img 
-                  src={user.photoURL || ''} 
-                  alt="User Large" 
-                  className="w-16 h-16 rounded-full border-2 border-primary/20 shadow-sm object-cover mb-2" 
-                />
+                <div className="mb-2">
+                  {renderAvatar("w-16 h-16 border-2 border-primary/20 shadow-sm", "text-2xl")}
+                </div>
                 <div className="font-extrabold text-sm truncate max-w-full">
                   {user.displayName || 'ユーザー名未設定'}
                 </div>

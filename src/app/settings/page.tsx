@@ -7,7 +7,18 @@ import { Appliance, ChildPreference } from '../../types';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { userPreference, setUserPreference } = useAppContext();
+  const { userPreference, setUserPreference, user, changePassword } = useAppContext();
+
+  // メールアドレスログインユーザーであるかを判定
+  const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
+
+  // パスワード変更用ステート
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+  const [pwChanging, setPwChanging] = useState(false);
 
   // 優先順位の初期状態として、使えるすべての器具をデフォルトセット
   const defaultAppliances: Appliance[] = ['ホットクック', 'ヘルシオ（オーブン/レンジ機能）', 'フライパン', '鍋'];
@@ -87,6 +98,45 @@ export default function SettingsPage() {
     }
     setUserPreference(finalConfig);
     router.push('/'); // 設定完了後はトップ（献立生成カレンダー）へ
+  };
+
+  const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setPwError('すべての項目を入力してください。');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPwError('新しいパスワードと確認用パスワードが一致しません。');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPwError('新しいパスワードは6文字以上で入力してください。');
+      return;
+    }
+
+    setPwError('');
+    setPwSuccess('');
+    setPwChanging(true);
+
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPwSuccess('パスワードが正常に変更されました。');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      console.error("Password change failed:", err);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setPwError('現在のパスワードが正しくありません。');
+      } else if (err.code === 'auth/weak-password') {
+        setPwError('新しいパスワードが脆弱です。6文字以上の別のパスワードを入力してください。');
+      } else {
+        setPwError('パスワードの変更に失敗しました。現在のパスワードを確認の上、再度お試しください。');
+      }
+    } finally {
+      setPwChanging(false);
+    }
   };
 
   return (
@@ -235,6 +285,85 @@ export default function SettingsPage() {
           💾 設定を保存して次へ
         </button>
       </form>
+
+      {/* メールログインユーザー限定のパスワード変更フォーム */}
+      {isEmailUser && (
+        <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6 animate-in fade-in duration-500">
+          <div className="border-b border-border pb-2">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              🔒 パスワードの変更
+            </h2>
+            <p className="text-sm opacity-70 mt-1">アカウントのセキュリティを高めるために、パスワードを変更できます。</p>
+          </div>
+
+          {pwError && (
+            <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl p-3 text-sm font-bold">
+              ⚠️ {pwError}
+            </div>
+          )}
+
+          {pwSuccess && (
+            <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl p-3.5 text-sm font-bold">
+              ✅ {pwSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <label className="font-bold text-sm sm:text-right">現在のパスワード</label>
+              <input
+                type="password"
+                placeholder="現在のパスワードを入力"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <label className="font-bold text-sm sm:text-right">新しいパスワード</label>
+              <input
+                type="password"
+                placeholder="6文字以上の新しいパスワード"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <label className="font-bold text-sm sm:text-right">新しいパスワード（確認）</label>
+              <input
+                type="password"
+                placeholder="もう一度新しいパスワードを入力"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                required
+              />
+            </div>
+
+            <div className="pt-2 sm:pl-32">
+              <button
+                type="submit"
+                disabled={pwChanging}
+                className="w-full sm:w-auto px-6 py-3 bg-secondary text-secondary-foreground hover:bg-secondary/95 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2"
+              >
+                {pwChanging ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>変更中...</span>
+                  </>
+                ) : (
+                  <span>🔑 パスワードを更新</span>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
