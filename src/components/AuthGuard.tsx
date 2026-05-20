@@ -45,6 +45,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return '試行回数が多すぎるため、一時的にロックされています。しばらく時間をおいて再試行してください。';
       case 'auth/invalid-credential':
         return 'メールアドレスまたはパスワードが間違っています。';
+      case 'auth/operation-not-allowed':
+        return 'メール/パスワード認証がFirebaseで有効になっていません。Firebase ConsoleのAuthentication -> Sign-in methodで「メール/パスワード」を有効に設定してください。';
       default:
         return 'エラーが発生しました。もう一度お試しください。';
     }
