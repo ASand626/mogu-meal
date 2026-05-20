@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserPreference, WeekMenu, Recipe } from '../types';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AppState {
@@ -17,9 +17,13 @@ interface AppState {
   user: User | null;
   loadingAuth: boolean;
   isGuest: boolean;
+  isLoggingIn: boolean;
   startGuestMode: () => void;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -31,6 +35,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Firestoreにデータを保存するヘルパー
   const saveToFirestore = async (uid: string, key: string, data: any) => {
@@ -74,6 +79,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       setUser(currentUser);
       setLoadingAuth(false);
+      setIsLoggingIn(false);
     });
 
     return () => unsubscribe();
@@ -124,13 +130,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const login = async () => {
     const provider = new GoogleAuthProvider();
     try {
+      setIsLoggingIn(true);
       await signInWithPopup(auth, provider);
       setIsGuest(false);
     } catch (error: any) {
+      setIsLoggingIn(false);
       console.error("Login failed", error);
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         alert("エラーが発生しました: " + (error.message || error.code || "不明なエラー"));
       }
+      throw error;
+    }
+  };
+
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      setIsLoggingIn(true);
+      await signInWithEmailAndPassword(auth, email, password);
+      setIsGuest(false);
+    } catch (error: any) {
+      setIsLoggingIn(false);
+      console.error("Email login failed", error);
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string) => {
+    try {
+      setIsLoggingIn(true);
+      await createUserWithEmailAndPassword(auth, email, password);
+      setIsGuest(false);
+    } catch (error: any) {
+      setIsLoggingIn(false);
+      console.error("Email signup failed", error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error: any) {
+      console.error("Password reset failed", error);
       throw error;
     }
   };
@@ -158,7 +199,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userPreference, setUserPreference, 
       weekMenu, setWeekMenu,
       favoriteRecipes, setFavoriteRecipes, toggleFavorite,
-      user, loadingAuth, isGuest, startGuestMode, login, logout
+      user, loadingAuth, isGuest, isLoggingIn, startGuestMode, login, logout,
+      loginWithEmail, signUpWithEmail, resetPassword
     }}>
       {children}
     </AppContext.Provider>
