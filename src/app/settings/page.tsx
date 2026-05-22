@@ -7,10 +7,19 @@ import { Appliance, ChildPreference } from '../../types';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { userPreference, setUserPreference, user, changePassword } = useAppContext();
+  const { userPreference, setUserPreference, user, changePassword, updateDisplayName } = useAppContext();
 
   // メールアドレスログインユーザーであるかを判定
   const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
+
+  // アクティブなタブステート (family: 家族・器具, account: アカウント情報)
+  const [activeTab, setActiveTab] = useState<'family' | 'account'>('family');
+
+  // ユーザー名設定・変更用ステート
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
+  const [nameUpdating, setNameUpdating] = useState(false);
 
   // パスワード変更用ステート
   const [currentPassword, setCurrentPassword] = useState('');
@@ -19,6 +28,13 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
   const [pwChanging, setPwChanging] = useState(false);
+
+  // ユーザーオブジェクトがロード・更新されたらユーザー名入力欄を同期
+  useEffect(() => {
+    if (user?.displayName) {
+      setDisplayName(user.displayName);
+    }
+  }, [user]);
 
   // 優先順位の初期状態として、使えるすべての器具をデフォルトセット
   const defaultAppliances: Appliance[] = ['ホットクック', 'ヘルシオ（オーブン/レンジ機能）', 'フライパン', '鍋'];
@@ -139,229 +155,364 @@ export default function SettingsPage() {
     }
   };
 
+  const handleNameChangeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim()) {
+      setNameError('ユーザー名を入力してください。');
+      return;
+    }
+    setNameError('');
+    setNameSuccess('');
+    setNameUpdating(true);
+
+    try {
+      await updateDisplayName(displayName.trim());
+      setNameSuccess('ユーザー名を設定・変更しました。');
+    } catch (err: any) {
+      console.error("Failed to update name:", err);
+      setNameError('ユーザー名の更新に失敗しました。もう一度お試しください。');
+    } finally {
+      setNameUpdating(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-700 pb-12">
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">初期設定（家族・器具）</h1>
-        <p className="text-foreground opacity-70">あなたのご家庭の基本情報を登録してください</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">設定とマイアカウント</h1>
+        <p className="text-foreground opacity-70">ご家庭の設定やアカウント情報を変更・確認できます</p>
+      </div>
+
+      {/* タブ切り替えUI */}
+      <div className="flex bg-slate-200/60 p-1.5 rounded-2xl max-w-md mx-auto shadow-inner border border-slate-300/30">
+        <button
+          type="button"
+          onClick={() => setActiveTab('family')}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-extrabold transition transform duration-200 ${
+            activeTab === 'family'
+              ? 'bg-white text-slate-800 shadow-md scale-[1.02]'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+          }`}
+        >
+          <span>👥</span> 家族・器具設定
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('account')}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-extrabold transition transform duration-200 ${
+            activeTab === 'account'
+              ? 'bg-white text-slate-800 shadow-md scale-[1.02]'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+          }`}
+        >
+          <span>👤</span> マイアカウント
+        </button>
       </div>
       
-      <form onSubmit={handleSubmit} className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl space-y-10 border border-border">
-        {/* 家族構成 */}
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
-            <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">1</span> 家族構成
-          </h2>
-          <div className="flex flex-wrap gap-8 items-center">
-            <div className="flex gap-4 items-center">
-              <label className="font-bold w-16 text-right">大人</label>
-              <input 
-                type="number" min="1" max="10" 
-                value={familyConfig.adultCount} 
-                onChange={e => setFamilyConfig({...familyConfig, adultCount: parseInt(e.target.value)})}
-                className="w-20 p-2 rounded-xl border border-border bg-background focus:outline-primary focus:ring-2 ring-primary/20 transition text-center" 
-              />
-              <span>人</span>
-            </div>
-            <div className="flex gap-4 items-center">
-              <label className="font-bold w-16 text-right">子供</label>
-              <input 
-                type="number" min="0" max="10" 
-                value={familyConfig.childCount} 
-                onChange={e => handleChildCountChange(parseInt(e.target.value))}
-                className="w-20 p-2 rounded-xl border border-border bg-background focus:outline-primary focus:ring-2 ring-primary/20 transition text-center" 
-              />
-              <span>人</span>
-            </div>
-          </div>
-        </section>
-
-        {/* 子供の好き嫌い */}
-        {familyConfig.children.length > 0 && (
-          <section className="space-y-4 animate-in fade-in">
+      {/* 1. 家族構成・器具設定タブ */}
+      {activeTab === 'family' && (
+        <form onSubmit={handleSubmit} className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl space-y-10 border border-border animate-in fade-in duration-300">
+          {/* 家族構成 */}
+          <section className="space-y-4">
             <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
-              <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">2</span> 子供の好み
+              <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">1</span> 家族構成
             </h2>
-            {familyConfig.children.map((child, idx) => (
-              <div key={idx} className="bg-secondary/30 p-5 rounded-2xl border border-border/50 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-primary">子供 {idx + 1}</span>
-                  <div className="flex items-center gap-2 text-sm">
-                    <label>名前:</label>
-                    <input 
-                      type="text" value={child.name} 
-                      onChange={e => {
-                        const newChildren = [...familyConfig.children];
-                        newChildren[idx].name = e.target.value;
-                        setFamilyConfig({...familyConfig, children: newChildren});
-                      }}
-                      className="w-24 p-1 rounded-md border border-border bg-background text-center"
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm mb-1 font-bold">好きな食材（カンマ区切り）</label>
-                    <input 
-                      type="text" placeholder="例: ハンバーグ, コーン, ウインナー" 
-                      defaultValue={child.likedIngredients.join(', ')}
-                      onBlur={e => handleChildIngredientChange(idx, 'likedIngredients', e.target.value)}
-                      className="w-full p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm" 
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm mb-1 font-bold">苦手な食材（カンマ区切り）</label>
-                    <input 
-                      type="text" placeholder="例: ピーマン, きのこ, ネギ" 
-                      defaultValue={child.dislikedIngredients.join(', ')}
-                      onBlur={e => handleChildIngredientChange(idx, 'dislikedIngredients', e.target.value)}
-                      className="w-full p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm" 
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {/* 使用する調理器具と優先順位 */}
-        <section className="space-y-6">
-          <div className="border-b border-border pb-2">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">3</span> 使える調理器具と優先順位
-            </h2>
-            <p className="text-sm opacity-70 mt-1 ml-9">ご自宅にある器具にチェックを入れ、よく使う順番に並び替えてください。</p>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {defaultAppliances.map(app => (
-              <label key={app} className="flex items-center space-x-3 p-3 rounded-xl border border-border bg-secondary/10 hover:bg-secondary/30 cursor-pointer transition">
+            <div className="flex flex-wrap gap-8 items-center">
+              <div className="flex gap-4 items-center">
+                <label className="font-bold w-16 text-right">大人</label>
                 <input 
-                  type="checkbox" 
-                  checked={familyConfig.appliances.includes(app)}
-                  onChange={() => handleApplianceToggle(app)}
-                  className="w-5 h-5 text-primary rounded focus:ring-primary accent-primary" 
+                  type="number" min="1" max="10" 
+                  value={familyConfig.adultCount} 
+                  onChange={e => setFamilyConfig({...familyConfig, adultCount: parseInt(e.target.value)})}
+                  className="w-20 p-2 rounded-xl border border-border bg-background focus:outline-primary focus:ring-2 ring-primary/20 transition text-center" 
                 />
-                <span className="font-bold text-sm select-none truncate" title={app}>{app}</span>
-              </label>
-            ))}
-          </div>
+                <span>人</span>
+              </div>
+              <div className="flex gap-4 items-center">
+                <label className="font-bold w-16 text-right">子供</label>
+                <input 
+                  type="number" min="0" max="10" 
+                  value={familyConfig.childCount} 
+                  onChange={e => handleChildCountChange(parseInt(e.target.value))}
+                  className="w-20 p-2 rounded-xl border border-border bg-background focus:outline-primary focus:ring-2 ring-primary/20 transition text-center" 
+                />
+                <span>人</span>
+              </div>
+            </div>
+          </section>
 
-          {/* 優先順位の設定UI */}
-          {familyConfig.appliancePriorities && familyConfig.appliancePriorities.length > 0 && (
-            <div className="bg-secondary/10 p-4 rounded-xl border border-border space-y-2">
-              <h3 className="font-bold text-sm text-primary mb-3">優先的に使いたい順番</h3>
-              {familyConfig.appliancePriorities.map((app, index) => (
-                <div key={app} className="flex items-center justify-between bg-white p-3 rounded-lg border border-border shadow-sm">
-                  <span className="font-bold text-sm">
-                    <span className="text-primary mr-2">{index + 1}.</span>{app}
-                  </span>
-                  <div className="flex gap-1">
-                    <button 
-                      type="button" 
-                      onClick={() => movePriority(index, 'up')}
-                      disabled={index === 0}
-                      className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                    >
-                      🔼
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => movePriority(index, 'down')}
-                      disabled={index === familyConfig.appliancePriorities!.length - 1}
-                      className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                    >
-                      🔽
-                    </button>
+          {/* 子供の好き嫌い */}
+          {familyConfig.children.length > 0 && (
+            <section className="space-y-4 animate-in fade-in">
+              <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
+                <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">2</span> 子供の好み
+              </h2>
+              {familyConfig.children.map((child, idx) => (
+                <div key={idx} className="bg-secondary/30 p-5 rounded-2xl border border-border/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-primary">子供 {idx + 1}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <label>名前:</label>
+                      <input 
+                        type="text" value={child.name} 
+                        onChange={e => {
+                          const newChildren = [...familyConfig.children];
+                          newChildren[idx].name = e.target.value;
+                          setFamilyConfig({...familyConfig, children: newChildren});
+                        }}
+                        className="w-24 p-1 rounded-md border border-border bg-background text-center"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm mb-1 font-bold">好きな食材（カンマ区切り）</label>
+                      <input 
+                        type="text" placeholder="例: ハンバーグ, コーン, ウインナー" 
+                        defaultValue={child.likedIngredients.join(', ')}
+                        onBlur={e => handleChildIngredientChange(idx, 'likedIngredients', e.target.value)}
+                        className="w-full p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1 font-bold">苦手な食材（カンマ区切り）</label>
+                      <input 
+                        type="text" placeholder="例: ピーマン, きのこ, ネギ" 
+                        defaultValue={child.dislikedIngredients.join(', ')}
+                        onBlur={e => handleChildIngredientChange(idx, 'dislikedIngredients', e.target.value)}
+                        className="w-full p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm" 
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
-            </div>
+            </section>
           )}
-        </section>
 
-        <button type="submit" className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-teal-700 hover:shadow-xl transition transform hover:-translate-y-0.5">
-          💾 設定を保存して次へ
-        </button>
-      </form>
+          {/* 使用する調理器具と優先順位 */}
+          <section className="space-y-6">
+            <div className="border-b border-border pb-2">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <span className="bg-secondary text-secondary-foreground p-1.5 rounded-lg text-sm">3</span> 使える調理器具と優先順位
+              </h2>
+              <p className="text-sm opacity-70 mt-1 ml-9">ご自宅にある器具にチェックを入れ、よく使う順番に並び替えてください。</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {defaultAppliances.map(app => (
+                <label key={app} className="flex items-center space-x-3 p-3 rounded-xl border border-border bg-secondary/10 hover:bg-secondary/30 cursor-pointer transition">
+                  <input 
+                    type="checkbox" 
+                    checked={familyConfig.appliances.includes(app)}
+                    onChange={() => handleApplianceToggle(app)}
+                    className="w-5 h-5 text-primary rounded focus:ring-primary accent-primary" 
+                  />
+                  <span className="font-bold text-sm select-none truncate" title={app}>{app}</span>
+                </label>
+              ))}
+            </div>
 
-      {/* メールログインユーザー限定のパスワード変更フォーム */}
-      {isEmailUser && (
-        <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6 animate-in fade-in duration-500">
-          <div className="border-b border-border pb-2">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              🔒 パスワードの変更
+            {/* 優先順位の設定UI */}
+            {familyConfig.appliancePriorities && familyConfig.appliancePriorities.length > 0 && (
+              <div className="bg-secondary/10 p-4 rounded-xl border border-border space-y-2">
+                <h3 className="font-bold text-sm text-primary mb-3">優先的に使いたい順番</h3>
+                {familyConfig.appliancePriorities.map((app, index) => (
+                  <div key={app} className="flex items-center justify-between bg-white p-3 rounded-lg border border-border shadow-sm">
+                    <span className="font-bold text-sm">
+                      <span className="text-primary mr-2">{index + 1}.</span>{app}
+                    </span>
+                    <div className="flex gap-1">
+                      <button 
+                        type="button" 
+                        onClick={() => movePriority(index, 'up')}
+                        disabled={index === 0}
+                        className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        🔼
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => movePriority(index, 'down')}
+                        disabled={index === familyConfig.appliancePriorities!.length - 1}
+                        className="p-1.5 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        🔽
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <button type="submit" className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-teal-700 hover:shadow-xl transition transform hover:-translate-y-0.5">
+            💾 設定を保存して次へ
+          </button>
+        </form>
+      )}
+
+      {/* 2. マイアカウントタブ */}
+      {activeTab === 'account' && (
+        <div className="space-y-8 animate-in fade-in duration-300">
+          {/* アカウント基本情報 */}
+          <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
+            <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
+              ℹ️ アカウント基本情報
             </h2>
-            <p className="text-sm opacity-70 mt-1">アカウントのセキュリティを高めるために、パスワードを変更できます。</p>
+            
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-secondary/10 p-4 rounded-xl border border-border/50">
+                <span className="font-extrabold text-sm text-slate-500">ログイン中のメールアドレス</span>
+                <span className="font-black text-slate-800 text-base break-all">{user?.email || '未設定 (ゲストモード)'}</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-secondary/10 p-4 rounded-xl border border-border/50">
+                <span className="font-extrabold text-sm text-slate-500">ログイン認証方式</span>
+                <div>
+                  {isEmailUser ? (
+                    <span className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-200 shadow-sm">
+                      📧 メール・パスワード認証
+                    </span>
+                  ) : user ? (
+                    <span className="px-3 py-1.5 bg-rose-50 text-rose-700 text-xs font-bold rounded-full border border-rose-200 shadow-sm">
+                      🌐 Googleアカウント連携
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-full border border-slate-200">
+                      👤 ゲストモード
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {pwError && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl p-3 text-sm font-bold">
-              ⚠️ {pwError}
+          {/* ユーザー名設定・変更 */}
+          <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
+            <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
+              ✏️ ユーザー名（表示名）の設定
+            </h2>
+            <p className="text-sm opacity-70">アプリ内で表示されるあなたの名前を設定・変更できます。</p>
+
+            {nameError && (
+              <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl p-3 text-sm font-bold">
+                ⚠️ {nameError}
+              </div>
+            )}
+
+            {nameSuccess && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl p-3.5 text-sm font-bold">
+                ✅ {nameSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleNameChangeSubmit} className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                <label className="font-bold text-sm sm:text-right">ユーザー名</label>
+                <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    placeholder="新しいユーザー名を入力"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="flex-1 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={nameUpdating}
+                    className="w-full sm:w-auto px-6 py-3 bg-primary text-primary-foreground hover:bg-teal-700 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 shrink-0 text-sm"
+                  >
+                    {nameUpdating ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <span>保存する</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* パスワード変更（メールログインユーザー限定） */}
+          {isEmailUser && (
+            <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
+              <div className="border-b border-border pb-2">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  🔒 パスワードの変更
+                </h2>
+                <p className="text-sm opacity-70 mt-1">アカウントのセキュリティを高めるために、パスワードを変更できます。</p>
+              </div>
+
+              {pwError && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl p-3 text-sm font-bold">
+                  ⚠️ {pwError}
+                </div>
+              )}
+
+              {pwSuccess && (
+                <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl p-3.5 text-sm font-bold">
+                  ✅ {pwSuccess}
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <label className="font-bold text-sm sm:text-right">現在のパスワード</label>
+                  <input
+                    type="password"
+                    placeholder="現在のパスワードを入力"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <label className="font-bold text-sm sm:text-right">新しいパスワード</label>
+                  <input
+                    type="password"
+                    placeholder="6文字以上の新しいパスワード"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <label className="font-bold text-sm sm:text-right">新しいパスワード（確認）</label>
+                  <input
+                    type="password"
+                    placeholder="もう一度新しいパスワードを入力"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="pt-2 sm:pl-32">
+                  <button
+                    type="submit"
+                    disabled={pwChanging}
+                    className="w-full sm:w-auto px-6 py-3 bg-secondary text-secondary-foreground hover:bg-secondary/95 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 text-sm"
+                  >
+                    {pwChanging ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span>変更中...</span>
+                      </>
+                    ) : (
+                      <span>🔑 パスワードを更新</span>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
-
-          {pwSuccess && (
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl p-3.5 text-sm font-bold">
-              ✅ {pwSuccess}
-            </div>
-          )}
-
-          <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-              <label className="font-bold text-sm sm:text-right">現在のパスワード</label>
-              <input
-                type="password"
-                placeholder="現在のパスワードを入力"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-              <label className="font-bold text-sm sm:text-right">新しいパスワード</label>
-              <input
-                type="password"
-                placeholder="6文字以上の新しいパスワード"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
-              <label className="font-bold text-sm sm:text-right">新しいパスワード（確認）</label>
-              <input
-                type="password"
-                placeholder="もう一度新しいパスワードを入力"
-                value={confirmNewPassword}
-                onChange={(e) => setConfirmNewPassword(e.target.value)}
-                className="sm:col-span-2 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
-                required
-              />
-            </div>
-
-            <div className="pt-2 sm:pl-32">
-              <button
-                type="submit"
-                disabled={pwChanging}
-                className="w-full sm:w-auto px-6 py-3 bg-secondary text-secondary-foreground hover:bg-secondary/95 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2"
-              >
-                {pwChanging ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
-                    <span>変更中...</span>
-                  </>
-                ) : (
-                  <span>🔑 パスワードを更新</span>
-                )}
-              </button>
-            </div>
-          </form>
         </div>
       )}
     </div>

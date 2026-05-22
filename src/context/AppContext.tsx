@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserPreference, WeekMenu, Recipe } from '../types';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, getAdditionalUserInfo, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, updatePassword, reauthenticateWithCredential, EmailAuthProvider, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AppState {
@@ -27,6 +27,7 @@ interface AppState {
   sendVerificationEmail: () => Promise<void>;
   reloadUser: () => Promise<void>;
   changePassword: (current: string, newPass: string) => Promise<void>;
+  updateDisplayName: (name: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -203,8 +204,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (auth.currentUser) {
       try {
         await auth.currentUser.reload();
-        // auth.currentUserの状態を最新のユーザーにマッピングしてステート更新
-        setUser({ ...auth.currentUser });
+        const currentUser = auth.currentUser;
+        // プロトタイプとプロパティを維持してシャローコピーを作成し、Reactの状態を強制更新
+        const clonedUser = Object.assign(
+          Object.create(Object.getPrototypeOf(currentUser)),
+          currentUser
+        ) as User;
+        setUser(clonedUser);
       } catch (error: any) {
         console.error("Failed to reload user", error);
         throw error;
@@ -223,6 +229,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await updatePassword(currentUser, newPass);
     } catch (error: any) {
       console.error("Password change failed", error);
+      throw error;
+    }
+  };
+
+  const updateDisplayName = async (name: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error("ログインユーザーが見つかりません。");
+    }
+    try {
+      await updateProfile(currentUser, { displayName: name });
+      const updatedUser = auth.currentUser;
+      if (updatedUser) {
+        // プロトタイプとプロパティを維持してシャローコピーを作成し、Reactの状態を強制更新
+        const clonedUser = Object.assign(
+          Object.create(Object.getPrototypeOf(updatedUser)),
+          updatedUser
+        ) as User;
+        setUser(clonedUser);
+      }
+    } catch (error: any) {
+      console.error("Failed to update display name", error);
       throw error;
     }
   };
@@ -252,7 +280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       favoriteRecipes, setFavoriteRecipes, toggleFavorite,
       user, loadingAuth, isGuest, isLoggingIn, startGuestMode, login, logout,
       loginWithEmail, signUpWithEmail, resetPassword,
-      sendVerificationEmail, reloadUser, changePassword
+      sendVerificationEmail, reloadUser, changePassword, updateDisplayName
     }}>
       {children}
     </AppContext.Provider>
