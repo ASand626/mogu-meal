@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 
 export default function WeeklySetupPage() {
   const router = useRouter();
-  const { userPreference, setWeekMenu, loadingAuth } = useAppContext();
+  const { userPreference, setWeekMenu, loadingAuth, user, isGuest } = useAppContext();
 
   // カレンダー用の簡単な日付生成
   const getUpcomingDays = () => {
@@ -32,12 +32,12 @@ export default function WeeklySetupPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // UserPreferenceがない場合は初期設定画面へリダイレクト（ロード完了後のみ実行）
+  // ログイン中またはゲストモードで、かつUserPreferenceがない場合は初期設定画面へリダイレクト（ロード完了後のみ実行）
   useEffect(() => {
-    if (!loadingAuth && userPreference === null) {
+    if (!loadingAuth && (user || isGuest) && userPreference === null) {
       router.push('/settings');
     }
-  }, [userPreference, loadingAuth, router]);
+  }, [userPreference, loadingAuth, user, isGuest, router]);
 
   if (!userPreference) return null;
 

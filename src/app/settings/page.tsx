@@ -11,6 +11,8 @@ export default function SettingsPage() {
 
   // タブ管理ステート
   const [activeTab, setActiveTab] = useState<'family' | 'account'>('family');
+  // 保存中ステート（遷移ラグ対策）
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // メールアドレスログインユーザーであるかを判定
   const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
@@ -37,6 +39,13 @@ export default function SettingsPage() {
       setDisplayNameInput(user.displayName);
     }
   }, [user]);
+
+  // 状態更新ラグ対策：設定保存が成功し、userPreferenceが反映されたら安全にトップへ遷移する
+  useEffect(() => {
+    if (isSubmitting && userPreference !== null) {
+      router.push('/');
+    }
+  }, [isSubmitting, userPreference, router]);
 
   // 優先順位の初期状態として、使えるすべての器具をデフォルトセット
   const defaultAppliances: Appliance[] = ['ホットクック', 'ヘルシオ（オーブン/レンジ機能）', 'フライパン', '鍋'];
@@ -114,8 +123,8 @@ export default function SettingsPage() {
     if (!finalConfig.appliancePriorities) {
       finalConfig.appliancePriorities = [...finalConfig.appliances];
     }
+    setIsSubmitting(true);
     setUserPreference(finalConfig);
-    router.push('/'); // 設定完了後はトップ（献立生成カレンダー）へ
   };
 
   const handlePasswordChangeSubmit = async (e: React.FormEvent) => {

@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 
 export default function MenuPage() {
   const router = useRouter();
-  const { userPreference, weekMenu, setWeekMenu, favoriteRecipes, toggleFavorite, loadingAuth } = useAppContext();
+  const { userPreference, weekMenu, setWeekMenu, favoriteRecipes, toggleFavorite, loadingAuth, user, isGuest } = useAppContext();
   
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -24,12 +24,12 @@ export default function MenuPage() {
   // アコーディオンの開閉状態
   const [expandedDays, setExpandedDays] = useState<number[]>([0]);
 
-  // マウント時にデータの存在をチェック（ロード完了後のみ実行）
+  // マウント時にデータの存在をチェック（ログイン中またはゲストモードの場合のみ実行）
   useEffect(() => {
-    if (!loadingAuth && (!userPreference || !weekMenu)) {
+    if (!loadingAuth && (user || isGuest) && (!userPreference || !weekMenu)) {
       router.push('/');
     }
-  }, [userPreference, weekMenu, loadingAuth, router]);
+  }, [userPreference, weekMenu, loadingAuth, user, isGuest, router]);
 
   if (!userPreference || !weekMenu) return null;
 

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { 
     user, 
     loadingAuth, 
@@ -18,6 +20,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   } = useAppContext();
 
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>('login');
+
+  // 未ログイン時にURLが /settings や /menu のまま残るのを防ぐため、ルートへリセット
+  useEffect(() => {
+    if (!loadingAuth && !user && !isGuest) {
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/' && currentPath !== '/login') {
+          router.push('/');
+        }
+      }
+    }
+  }, [user, isGuest, loadingAuth, router]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
