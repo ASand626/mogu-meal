@@ -9,17 +9,13 @@ export default function SettingsPage() {
   const router = useRouter();
   const { userPreference, setUserPreference, user, changePassword, updateDisplayName } = useAppContext();
 
-  // メールアドレスログインユーザーであるかを判定
-  const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
-
-  // アクティブなタブステート (family: 家族・器具, account: アカウント情報)
+  // タブ管理ステート
   const [activeTab, setActiveTab] = useState<'family' | 'account'>('family');
 
-  // ユーザー名設定・変更用ステート
-  const [displayName, setDisplayName] = useState(user?.displayName || '');
-  const [nameError, setNameError] = useState('');
-  const [nameSuccess, setNameSuccess] = useState('');
-  const [nameUpdating, setNameUpdating] = useState(false);
+  // メールアドレスログインユーザーであるかを判定
+  const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
+  // Googleログインユーザーであるかを判定
+  const isGoogleUser = user?.providerData.some((p) => p.providerId === 'google.com');
 
   // パスワード変更用ステート
   const [currentPassword, setCurrentPassword] = useState('');
@@ -29,10 +25,16 @@ export default function SettingsPage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [pwChanging, setPwChanging] = useState(false);
 
-  // ユーザーオブジェクトがロード・更新されたらユーザー名入力欄を同期
+  // ユーザー名変更用ステート
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
+  const [nameSaving, setNameSaving] = useState(false);
+
+  // ログイン時にユーザー名を初期セット
   useEffect(() => {
-    if (user?.displayName) {
-      setDisplayName(user.displayName);
+    if (user && user.displayName) {
+      setDisplayNameInput(user.displayName);
     }
   }, [user]);
 
@@ -157,41 +159,48 @@ export default function SettingsPage() {
 
   const handleNameChangeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim()) {
+    if (!displayNameInput.trim()) {
       setNameError('ユーザー名を入力してください。');
       return;
     }
     setNameError('');
     setNameSuccess('');
-    setNameUpdating(true);
+    setNameSaving(true);
 
     try {
-      await updateDisplayName(displayName.trim());
-      setNameSuccess('ユーザー名を設定・変更しました。');
+      await updateDisplayName(displayNameInput.trim());
+      setNameSuccess('ユーザー名を更新しました。');
     } catch (err: any) {
-      console.error("Failed to update name:", err);
+      console.error("Failed to update display name:", err);
       setNameError('ユーザー名の更新に失敗しました。もう一度お試しください。');
     } finally {
-      setNameUpdating(false);
+      setNameSaving(false);
     }
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-700 pb-12">
+      {/* タイトルの動的変更 */}
       <div className="text-center space-y-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">設定とマイアカウント</h1>
-        <p className="text-foreground opacity-70">ご家庭の設定やアカウント情報を変更・確認できます</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          {activeTab === 'family' ? '基本設定（家族・器具）' : 'マイアカウント設定'}
+        </h1>
+        <p className="text-foreground opacity-70">
+          {activeTab === 'family' 
+            ? 'あなたのご家庭の基本情報を登録・変更してください' 
+            : 'アカウント情報とセキュリティを管理します'}
+        </p>
       </div>
 
       {/* タブ切り替えUI */}
-      <div className="flex bg-slate-200/60 p-1.5 rounded-2xl max-w-md mx-auto shadow-inner border border-slate-300/30">
+      <div className="flex bg-slate-200/50 p-1.5 rounded-2xl w-full max-w-sm mx-auto shadow-inner">
         <button
           type="button"
           onClick={() => setActiveTab('family')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-extrabold transition transform duration-200 ${
+          className={`flex-1 py-3 px-4 rounded-xl text-sm font-black transition flex items-center justify-center gap-2 ${
             activeTab === 'family'
-              ? 'bg-white text-slate-800 shadow-md scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+              ? 'bg-white text-primary shadow-md'
+              : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>👥</span> 家族・器具設定
@@ -199,18 +208,18 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={() => setActiveTab('account')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-extrabold transition transform duration-200 ${
+          className={`flex-1 py-3 px-4 rounded-xl text-sm font-black transition flex items-center justify-center gap-2 ${
             activeTab === 'account'
-              ? 'bg-white text-slate-800 shadow-md scale-[1.02]'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-white/40'
+              ? 'bg-white text-primary shadow-md'
+              : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <span>👤</span> マイアカウント
         </button>
       </div>
-      
-      {/* 1. 家族構成・器具設定タブ */}
-      {activeTab === 'family' && (
+
+      {activeTab === 'family' ? (
+        /* 家族構成・調理器具フォーム (既存フォーム) */
         <form onSubmit={handleSubmit} className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl space-y-10 border border-border animate-in fade-in duration-300">
           {/* 家族構成 */}
           <section className="space-y-4">
@@ -350,50 +359,55 @@ export default function SettingsPage() {
             💾 設定を保存して次へ
           </button>
         </form>
-      )}
-
-      {/* 2. マイアカウントタブ */}
-      {activeTab === 'account' && (
+      ) : (
+        /* マイアカウントタブのコンテンツ */
         <div className="space-y-8 animate-in fade-in duration-300">
-          {/* アカウント基本情報 */}
+          {/* アカウント基本情報（メールアドレス ＆ プロバイダ） */}
           <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
-            <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
-              ℹ️ アカウント基本情報
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-secondary/10 p-4 rounded-xl border border-border/50">
-                <span className="font-extrabold text-sm text-slate-500">ログイン中のメールアドレス</span>
-                <span className="font-black text-slate-800 text-base break-all">{user?.email || '未設定 (ゲストモード)'}</span>
-              </div>
+            <div className="border-b border-border pb-2 flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                👤 登録アカウント情報
+              </h2>
+              {/* プロバイダバッジ */}
+              {isGoogleUser && (
+                <span className="bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                  🌐 Google連携
+                </span>
+              )}
+              {isEmailUser && (
+                <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                  🔑 メールログイン
+                </span>
+              )}
+              {!isGoogleUser && !isEmailUser && (
+                <span className="bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                  👤 ゲスト利用
+                </span>
+              )}
+            </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-secondary/10 p-4 rounded-xl border border-border/50">
-                <span className="font-extrabold text-sm text-slate-500">ログイン認証方式</span>
-                <div>
-                  {isEmailUser ? (
-                    <span className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-200 shadow-sm">
-                      📧 メール・パスワード認証
-                    </span>
-                  ) : user ? (
-                    <span className="px-3 py-1.5 bg-rose-50 text-rose-700 text-xs font-bold rounded-full border border-rose-200 shadow-sm">
-                      🌐 Googleアカウント連携
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-full border border-slate-200">
-                      👤 ゲストモード
-                    </span>
-                  )}
-                </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/20 p-4 rounded-xl border border-border/50">
+              <div>
+                <span className="text-xs text-slate-400 block font-bold mb-0.5">ログイン中のメールアドレス</span>
+                <span className="text-sm sm:text-base font-extrabold text-slate-700">{user?.email || 'メールアドレス未設定 (ゲスト)'}</span>
               </div>
+              {/* メール認証の補足表示 */}
+              {user && user.emailVerified && (
+                <span className="sm:self-end bg-teal-50 border border-teal-200 text-teal-700 text-xs font-extrabold px-2.5 py-1 rounded-md shrink-0 self-start">
+                  ✓ 認証済みアカウント
+                </span>
+              )}
             </div>
           </div>
 
-          {/* ユーザー名設定・変更 */}
+          {/* ユーザー名（表示名）設定・変更 */}
           <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
-            <h2 className="text-xl font-bold flex items-center gap-2 border-b border-border pb-2">
-              ✏️ ユーザー名（表示名）の設定
-            </h2>
-            <p className="text-sm opacity-70">アプリ内で表示されるあなたの名前を設定・変更できます。</p>
+            <div className="border-b border-border pb-2">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                🏷️ ユーザー名の設定・変更
+              </h2>
+              <p className="text-sm opacity-70 mt-1">アプリ内で表示されるあなたの名前を設定・変更できます。</p>
+            </div>
 
             {nameError && (
               <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl p-3 text-sm font-bold">
@@ -407,27 +421,30 @@ export default function SettingsPage() {
               </div>
             )}
 
-            <form onSubmit={handleNameChangeSubmit} className="space-y-4 pt-2">
+            <form onSubmit={handleNameChangeSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                 <label className="font-bold text-sm sm:text-right">ユーザー名</label>
                 <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3">
                   <input
                     type="text"
                     placeholder="新しいユーザー名を入力"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    className="flex-1 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-medium"
+                    value={displayNameInput}
+                    onChange={(e) => setDisplayNameInput(e.target.value)}
+                    className="flex-1 p-3 rounded-xl border border-border bg-background focus:outline-primary transition text-sm font-extrabold text-slate-800"
                     required
                   />
                   <button
                     type="submit"
-                    disabled={nameUpdating}
-                    className="w-full sm:w-auto px-6 py-3 bg-primary text-primary-foreground hover:bg-teal-700 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 shrink-0 text-sm"
+                    disabled={nameSaving}
+                    className="bg-primary text-primary-foreground hover:bg-teal-700 disabled:bg-slate-300 font-bold px-6 py-3 rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 text-sm"
                   >
-                    {nameUpdating ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    {nameSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"></div>
+                        <span>保存中...</span>
+                      </>
                     ) : (
-                      <span>保存する</span>
+                      <span>💾 保存</span>
                     )}
                   </button>
                 </div>
@@ -435,7 +452,7 @@ export default function SettingsPage() {
             </form>
           </div>
 
-          {/* パスワード変更（メールログインユーザー限定） */}
+          {/* パスワード変更フォーム (メールユーザーのみ) */}
           {isEmailUser && (
             <div className="bg-card text-card-foreground p-6 sm:p-10 rounded-2xl shadow-xl border border-border space-y-6">
               <div className="border-b border-border pb-2">
@@ -457,7 +474,7 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 pt-2">
+              <form onSubmit={handlePasswordChangeSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                   <label className="font-bold text-sm sm:text-right">現在のパスワード</label>
                   <input
@@ -498,7 +515,7 @@ export default function SettingsPage() {
                   <button
                     type="submit"
                     disabled={pwChanging}
-                    className="w-full sm:w-auto px-6 py-3 bg-secondary text-secondary-foreground hover:bg-secondary/95 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 text-sm"
+                    className="w-full sm:w-auto px-6 py-3 bg-secondary text-secondary-foreground hover:bg-secondary/95 disabled:bg-slate-300 font-bold rounded-xl shadow-md transition transform active:scale-95 disabled:scale-100 flex items-center justify-center gap-2"
                   >
                     {pwChanging ? (
                       <>

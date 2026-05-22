@@ -204,13 +204,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (auth.currentUser) {
       try {
         await auth.currentUser.reload();
-        const currentUser = auth.currentUser;
-        // プロトタイプとプロパティを維持してシャローコピーを作成し、Reactの状態を強制更新
-        const clonedUser = Object.assign(
-          Object.create(Object.getPrototypeOf(currentUser)),
-          currentUser
-        ) as User;
-        setUser(clonedUser);
+        // auth.currentUserの状態を最新のユーザーにマッピングしてステート更新
+        setUser({ ...auth.currentUser });
       } catch (error: any) {
         console.error("Failed to reload user", error);
         throw error;
@@ -240,15 +235,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     try {
       await updateProfile(currentUser, { displayName: name });
-      const updatedUser = auth.currentUser;
-      if (updatedUser) {
-        // プロトタイプとプロパティを維持してシャローコピーを作成し、Reactの状態を強制更新
-        const clonedUser = Object.assign(
-          Object.create(Object.getPrototypeOf(updatedUser)),
-          updatedUser
-        ) as User;
-        setUser(clonedUser);
-      }
+      setUser({ ...currentUser });
     } catch (error: any) {
       console.error("Failed to update display name", error);
       throw error;
