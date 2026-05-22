@@ -50,32 +50,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // アカウント別・ゲスト別のキャッシュキー名を取得するヘルパー
+  const getStorageKey = (uid: string | null, isGuestMode: boolean, key: string) => {
+    if (isGuestMode) return `mogu_${key}_guest`;
+    if (uid) return `mogu_${key}_${uid}`;
+    return `mogu_${key}_anonymous`;
+  };
+
   // Auth State Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setIsGuest(false); // ログイン検知時はゲストモードを自動解除
-        // ログイン状態：Firestoreからデータ取得
+        
+        // 1. まずLocalStorageからアカウント固有のキャッシュを同期的に即座に復元（ロード0秒・オフライン対応）
+        const localPref = localStorage.getItem(`mogu_userPreference_${currentUser.uid}`);
+        const localMenu = localStorage.getItem(`mogu_weekMenu_${currentUser.uid}`);
+        const localFavs = localStorage.getItem(`mogu_favoriteRecipes_${currentUser.uid}`);
+        
+        if (localPref) setUserPreferenceState(JSON.parse(localPref));
+        if (localMenu) setWeekMenuState(JSON.parse(localMenu));
+        if (localFavs) setFavoriteRecipesState(JSON.parse(localFavs));
+
+        // 2. その後、Firestoreから最新データを非同期で取得して同期
         try {
           const docRef = doc(db, 'users', currentUser.uid);
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
             const data = docSnap.data();
-            if (data.userPreference) setUserPreferenceState(data.userPreference);
-            if (data.weekMenu) setWeekMenuState(data.weekMenu);
-            if (data.favoriteRecipes) setFavoriteRecipesState(data.favoriteRecipes);
+            if (data.userPreference) {
+              setUserPreferenceState(data.userPreference);
+              localStorage.setItem(`mogu_userPreference_${currentUser.uid}`, JSON.stringify(data.userPreference));
+            }
+            if (data.weekMenu) {
+              setWeekMenuState(data.weekMenu);
+              localStorage.setItem(`mogu_weekMenu_${currentUser.uid}`, JSON.stringify(data.weekMenu));
+            }
+            if (data.favoriteRecipes) {
+              setFavoriteRecipesState(data.favoriteRecipes);
+              localStorage.setItem(`mogu_favoriteRecipes_${currentUser.uid}`, JSON.stringify(data.favoriteRecipes));
+            }
           } else {
-            // 新規登録ユーザーはFirestoreにデータがないためステートを初期化
-            setUserPreferenceState(null);
-            setWeekMenuState(null);
-            setFavoriteRecipesState([]);
+            // 新規登録ユーザー等でFirestoreにデータがなく、かつLocalStorageキャッシュもない場合のみ初期化
+            if (!localPref) setUserPreferenceState(null);
+            if (!localMenu) setWeekMenuState(null);
+            if (!localFavs) setFavoriteRecipesState([]);
           }
         } catch (error) {
-          console.error("Error fetching user data:", error);
+          console.error("Error fetching user data from Firestore, using local cache:", error);
         }
       } else {
         // 未ログイン状態：ステートをクリア（ゲストモードでなければリセット）
+        // ※他アカウントへの切り替えに対応するため、LocalStorage自体の削除は行いません
         setUserPreferenceState(null);
         setWeekMenuState(null);
         setFavoriteRecipesState([]);
@@ -91,33 +118,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const startGuestMode = () => {
     setIsGuest(true);
-    setUserPreferenceState(null);
-    setWeekMenuState(null);
-    setFavoriteRecipesState([]);
+    // ゲスト用キャッシュの同期復元
+    const localPref = localStorage.getItem('mogu_userPreference_guest');
+    const localMenu = localStorage.getItem('mogu_weekMenu_guest');
+    const localFavs = localStorage.getItem('mogu_favoriteRecipes_guest');
+
+    setUserPreferenceState(localPref ? JSON.parse(localPref) : null);
+    setWeekMenuState(localMenu ? JSON.parse(localMenu) : null);
+    setFavoriteRecipesState(localFavs ? JSON.parse(localFavs) : []);
   };
 
   const setUserPreference = (prefs: UserPreference) => {
     setUserPreferenceState(prefs);
+    const key = getStorageKey(user ? user.uid : null, isGuest, 'userPreference');
+    localStorage.setItem(key, JSON.stringify(prefs));
     if (user) {
       saveToFirestore(user.uid, 'userPreference', prefs);
     }
-    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const setWeekMenu = (menu: WeekMenu) => {
     setWeekMenuState(menu);
+    const key = getStorageKey(user ? user.uid : null, isGuest, 'weekMenu');
+    localStorage.setItem(key, JSON.stringify(menu));
     if (user) {
       saveToFirestore(user.uid, 'weekMenu', menu);
     }
-    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const setFavoriteRecipes = (recipes: Recipe[]) => {
     setFavoriteRecipesState(recipes);
+    const key = getStorageKey(user ? user.uid : null, isGuest, 'favoriteRecipes');
+    localStorage.setItem(key, JSON.stringify(recipes));
     if (user) {
       saveToFirestore(user.uid, 'favoriteRecipes', recipes);
     }
-    // ゲストモード中はローカルストレージには保存せずメモリのみで管理する仕様のため何もしない
   };
 
   const toggleFavorite = (recipe: Recipe) => {
