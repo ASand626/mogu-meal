@@ -12,7 +12,7 @@ export default function SettingsPage() {
   // タブ管理ステート
   const [activeTab, setActiveTab] = useState<'family' | 'account'>('family');
   // 保存中ステート（遷移ラグ対策）
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // メールアドレスログインユーザーであるかを判定
   const isEmailUser = user?.providerData.some((p) => p.providerId === 'password');
@@ -40,12 +40,7 @@ export default function SettingsPage() {
     }
   }, [user]);
 
-  // 状態更新ラグ対策：設定保存が成功し、userPreferenceが反映されたら安全にトップへ遷移する
-  useEffect(() => {
-    if (isSubmitting && userPreference !== null) {
-      router.push('/');
-    }
-  }, [isSubmitting, userPreference, router]);
+
 
   // 優先順位の初期状態として、使えるすべての器具をデフォルトセット
   const defaultAppliances: Appliance[] = ['ホットクック', 'ヘルシオ（オーブン/レンジ機能）', 'フライパン', '鍋'];
@@ -116,15 +111,22 @@ export default function SettingsPage() {
     setFamilyConfig({ ...familyConfig, appliancePriorities: prios });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // もし Priorities がなければ設定する
     const finalConfig = { ...familyConfig };
     if (!finalConfig.appliancePriorities) {
       finalConfig.appliancePriorities = [...finalConfig.appliances];
     }
-    setIsSubmitting(true);
-    setUserPreference(finalConfig);
+    setIsSaving(true);
+    try {
+      await setUserPreference(finalConfig);
+      router.push('/');
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
@@ -364,8 +366,22 @@ export default function SettingsPage() {
             )}
           </section>
 
-          <button type="submit" className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-teal-700 hover:shadow-xl transition transform hover:-translate-y-0.5">
-            💾 設定を保存して次へ
+          <button 
+            type="submit" 
+            disabled={isSaving}
+            className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-teal-700 hover:shadow-xl transition transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                保存中...
+              </>
+            ) : (
+              '💾 設定を保存して次へ'
+            )}
           </button>
         </form>
       ) : (

@@ -8,7 +8,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AppState {
   userPreference: UserPreference | null;
-  setUserPreference: (prefs: UserPreference) => void;
+  setUserPreference: (prefs: UserPreference) => Promise<void>;
   weekMenu: WeekMenu | null;
   setWeekMenu: (menu: WeekMenu) => void;
   favoriteRecipes: Recipe[];
@@ -128,12 +128,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFavoriteRecipesState(localFavs ? JSON.parse(localFavs) : []);
   };
 
-  const setUserPreference = (prefs: UserPreference) => {
+  const setUserPreference = async (prefs: UserPreference) => {
     setUserPreferenceState(prefs);
     const key = getStorageKey(user ? user.uid : null, isGuest, 'userPreference');
     localStorage.setItem(key, JSON.stringify(prefs));
     if (user) {
-      saveToFirestore(user.uid, 'userPreference', prefs);
+      await saveToFirestore(user.uid, 'userPreference', prefs);
     }
   };
 
